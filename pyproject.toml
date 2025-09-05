@@ -1,0 +1,21 @@
+[project]
+name = "dino-yolo-finetune"
+version = "0.1.0"
+description = "Fine-tune DINO v2 model with YOLO object detection dataset"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "transformers @ git+https://github.com/huggingface/transformers.git",
+    "datasets>=2.10.0",
+    "pillow>=9.0.0",
+    "accelerate @ git+https://github.com/huggingface/accelerate.git",
+    "pyyaml>=6.0",
+    "ultralytics>=8.3.193",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
+]
