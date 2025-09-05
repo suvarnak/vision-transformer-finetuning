@@ -12,13 +12,10 @@ LoRA (Low-Rank Adaptation) enables efficient fine-tuning of large Vision Transfo
 ### Key Steps
 
 #### 1.1 Dataset Preparation
-```bash
-python download_dataset.py
-```
-- Downloads **IDRiD (Indian Diabetic Retinopathy Image Dataset)**
-- Contains retinal images with diabetic retinopathy annotations
-- Converts from YOLO format to standard object detection format
-- Creates `data/` directory with images and labels
+- Uses **CIFAR-10** or **ImageNet** classification datasets
+- Standard image classification tasks (not object detection)
+- Automatically downloaded via Hugging Face datasets
+- No manual dataset preparation required
 
 #### 1.2 LoRA Implementation
 The LoRA approach adds low-rank matrices to attention layers:
@@ -104,10 +101,16 @@ smooth_l1 = 0.5 * diff^2 / beta  if diff < beta else diff - 0.5*beta
 ```
 
 ### Dataset
-- **COCO Detection Dataset**: `detection-datasets/coco`
-- **Training samples**: 1,000 (simple) / 5,000 (improved)
-- **Validation samples**: 100
-- **Classes**: 91 COCO categories
+- **LoRA ViT**: CIFAR-10/ImageNet classification datasets
+- **DINO v2**: COCO Detection Dataset (`detection-datasets/coco`)
+- **Training samples**: 1,000 (simple) / 5,000 (improved) for DINO - **subset for demonstration**
+- **Validation samples**: 100 for DINO
+- **Classes**: 10 (CIFAR-10) / 1000 (ImageNet) for LoRA, 91 (COCO) for DINO
+
+**Note**: The DINO v2 fine-tuning currently uses a small subset of COCO for demonstration purposes. For production use, you can:
+- Use the complete COCO dataset by changing `split="train[:5000]"` to `split="train"`
+- Use any other object detection dataset (Pascal VOC, Open Images, custom datasets)
+- Modify the `num_classes` parameter to match your dataset's class count
 
 ---
 
@@ -117,14 +120,16 @@ smooth_l1 = 0.5 * diff^2 / beta  if diff < beta else diff - 0.5*beta
 ```bash
 python finetune_dino2_simple.py
 ```
-- Trains basic DINO detector
+- Trains basic DINO detector on COCO subset (1,000 samples)
+- For full COCO dataset, modify: `split="train[:1000]"` → `split="train"`
 - Saves model as `dino2_detector.pth`
 
 ### 3.2 Improved DINO Training
 ```bash
 python improved_dino_detector.py
 ```
-- Trains enhanced DINO detector
+- Trains enhanced DINO detector on COCO subset (5,000 samples)
+- For full COCO dataset, modify: `split="train[:5000]"` → `split="train"`
 - Saves model as `improved_dino2_detector.pth`
 
 ### 3.3 Model Validation
@@ -186,7 +191,7 @@ pip install detectron2   # Detectron2
 ### 5.2 Project Structure
 ```
 lora-vit/
-├── download_dataset.py          # Dataset preparation
+├── lora_vit_notebook.ipynb      # LoRA ViT fine-tuning notebook
 ├── finetune_dino_yolo.py       # Original DINO training (with issues)
 ├── finetune_dino2_simple.py    # Simple DINO detector
 ├── improved_dino_detector.py    # Enhanced DINO detector
