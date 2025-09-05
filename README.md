@@ -5,7 +5,7 @@ This repository contains code for fine-tuning Vision Transformers using two diff
 ## 📁 Repository Structure
 
 ```
-lora-vit/
+vision-transformer-finetuning/
 ├── lora-vit-classification/     # LoRA fine-tuning for image classification
 │   ├── lora.ipynb             # Jupyter notebook with LoRA implementation
 │   └── README.md              # Detailed documentation
@@ -69,7 +69,7 @@ python plot_results.py  # Generate comparison charts
 ```bash
 # Clone repository
 git clone <repository-url>
-cd lora-vit
+cd vision-transformer-finetuning
 
 # Install core dependencies
 pip install torch torchvision transformers datasets pillow accelerate
