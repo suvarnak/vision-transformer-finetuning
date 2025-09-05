@@ -121,13 +121,13 @@ def validate_dino_detector(model_path, test_dataset, processor):
         "total_samples": total_samples
     }
 
-def validate_yolov8(test_dataset):
+def validate_yolov8(test_dataset, model_size='n'):
     """Validate using YOLOv8 (requires ultralytics)"""
     try:
         from ultralytics import YOLO
         
         # Load pretrained YOLOv8
-        model = YOLO('yolov8n.pt')
+        model = YOLO(f'yolov8{model_size}.pt')
         
         correct_classifications = 0
         total_samples = 0
@@ -270,17 +270,26 @@ def main():
     print(f"  Mean IoU: {dino_results['mean_iou']:.4f}")
     print(f"  Total Samples: {dino_results['total_samples']}")
     
-    # Validate YOLOv8
-    print("\n2. Validating YOLOv8...")
-    yolo_results = validate_yolov8(test_dataset)
-    if yolo_results:
-        print(f"YOLOv8 Results:")
-        print(f"  Classification Accuracy: {yolo_results['classification_accuracy']:.4f}")
-        print(f"  Mean IoU: {yolo_results['mean_iou']:.4f}")
-        print(f"  Total Samples: {yolo_results['total_samples']}")
+    # Validate YOLOv8n
+    print("\n2. Validating YOLOv8n...")
+    yolo_n_results = validate_yolov8(test_dataset, 'n')
+    if yolo_n_results:
+        print(f"YOLOv8n Results:")
+        print(f"  Classification Accuracy: {yolo_n_results['classification_accuracy']:.4f}")
+        print(f"  Mean IoU: {yolo_n_results['mean_iou']:.4f}")
+        print(f"  Total Samples: {yolo_n_results['total_samples']}")
+    
+    # Validate YOLOv8x
+    print("\n3. Validating YOLOv8x...")
+    yolo_x_results = validate_yolov8(test_dataset, 'x')
+    if yolo_x_results:
+        print(f"YOLOv8x Results:")
+        print(f"  Classification Accuracy: {yolo_x_results['classification_accuracy']:.4f}")
+        print(f"  Mean IoU: {yolo_x_results['mean_iou']:.4f}")
+        print(f"  Total Samples: {yolo_x_results['total_samples']}")
     
     # Validate Detectron2
-    print("\n3. Validating Detectron2...")
+    print("\n4. Validating Detectron2..."
     detectron_results = validate_detectron2(test_dataset)
     if detectron_results:
         print(f"Detectron2 Results:")
@@ -293,8 +302,10 @@ def main():
     print("VALIDATION SUMMARY")
     print("="*50)
     print(f"DINO Detector    - Acc: {dino_results['classification_accuracy']:.4f}, IoU: {dino_results['mean_iou']:.4f}")
-    if yolo_results:
-        print(f"YOLOv8          - Acc: {yolo_results['classification_accuracy']:.4f}, IoU: {yolo_results['mean_iou']:.4f}")
+    if yolo_n_results:
+        print(f"YOLOv8n         - Acc: {yolo_n_results['classification_accuracy']:.4f}, IoU: {yolo_n_results['mean_iou']:.4f}")
+    if yolo_x_results:
+        print(f"YOLOv8x         - Acc: {yolo_x_results['classification_accuracy']:.4f}, IoU: {yolo_x_results['mean_iou']:.4f}")
     if detectron_results:
         print(f"Detectron2      - Acc: {detectron_results['classification_accuracy']:.4f}, IoU: {detectron_results['mean_iou']:.4f}")
 

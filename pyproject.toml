@@ -12,6 +12,8 @@ dependencies = [
     "accelerate @ git+https://github.com/huggingface/accelerate.git",
     "pyyaml>=6.0",
     "ultralytics>=8.3.193",
+    "scikit-learn>=1.6.1",
+    "seaborn>=0.13.2",
 ]
 
 [tool.uv]

@@ -1,0 +1,42 @@
+[
+  {
+    "model_name": "Simple DINO Detector",
+    "accuracy": 0.216,
+    "precision": 0.046655999999999996,
+    "recall": 0.216,
+    "f1_score": 0.07673684210526314,
+    "mean_iou": 0.258485620232299,
+    "map_50": 0.06091171065353673,
+    "total_samples": 500
+  },
+  {
+    "model_name": "Improved DINO Detector",
+    "accuracy": 0.642,
+    "precision": 0.6347603174603176,
+    "recall": 0.642,
+    "f1_score": 0.6230314876308828,
+    "mean_iou": 0.32212379182456063,
+    "map_50": 0.15711588092047887,
+    "total_samples": 500
+  },
+  {
+    "model_name": "YOLOv8n",
+    "accuracy": 0.544,
+    "precision": 0.621668049155146,
+    "recall": 0.544,
+    "f1_score": 0.517368220050562,
+    "mean_iou": 0.13468693679978605,
+    "map_50": 0.0029013539648750984,
+    "total_samples": 500
+  },
+  {
+    "model_name": "YOLOv8x",
+    "accuracy": 0.56,
+    "precision": 0.6516032781172316,
+    "recall": 0.56,
+    "f1_score": 0.5454003542037598,
+    "mean_iou": 0.1381323979976587,
+    "map_50": 0.010101010089786755,
+    "total_samples": 500
+  }
+]
