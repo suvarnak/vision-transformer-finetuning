@@ -6,6 +6,7 @@ requires-python = ">=3.9"
 dependencies = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
+    "torchaudio>=2.0.0",
     "transformers @ git+https://github.com/huggingface/transformers.git",
     "datasets>=2.10.0",
     "pillow>=9.0.0",
@@ -15,10 +16,43 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "huggingface-hub>=0.34.4",
+    "hf-xet",
 ]
 
 [tool.uv]
 dev-dependencies = [
     "jupyter>=1.0.0",
     "ipykernel>=6.0.0",
+]
+
+[tool.uv.workspace]
+members = []
+
+[tool.uv.pip]
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+marker = "sys_platform == 'win32'"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu121-linux"
+url = "https://download.pytorch.org/whl/cu121"
+marker = "sys_platform == 'linux'"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu121-linux", marker = "sys_platform == 'linux'" }
+]
+torchvision = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu121-linux", marker = "sys_platform == 'linux'" }
+]
+torchaudio = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu121-linux", marker = "sys_platform == 'linux'" }
 ]

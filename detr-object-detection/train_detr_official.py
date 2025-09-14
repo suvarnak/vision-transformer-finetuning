@@ -47,26 +47,12 @@ class COCODataset:
         
         return image, target
 
+from nested_tensor import nested_tensor_from_tensor_list
+
 def collate_fn(batch):
     batch = list(zip(*batch))
     batch[0] = nested_tensor_from_tensor_list(batch[0])
     return tuple(batch)
-
-def nested_tensor_from_tensor_list(tensor_list):
-    if tensor_list[0].ndim == 3:
-        max_size = tuple(max(s) for s in zip(*[img.shape for img in tensor_list]))
-        batch_shape = (len(tensor_list),) + max_size
-        b, c, h, w = batch_shape
-        dtype = tensor_list[0].dtype
-        device = tensor_list[0].device
-        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
-        mask = torch.ones((b, h, w), dtype=torch.bool, device=device)
-        for img, pad_img, m in zip(tensor_list, tensor, mask):
-            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
-            m[: img.shape[1], :img.shape[2]] = False
-    else:
-        raise ValueError('not supported')
-    return tensor, mask
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -108,7 +94,7 @@ def main():
         'loss_bbox': 5, 
         'loss_giou': 2
     }
-    losses = ['labels', 'boxes', 'cardinality']
+    losses = ['loss_labels', 'loss_boxes']
     criterion = SetCriterion(
         80, 
         matcher, 
@@ -162,8 +148,7 @@ def main():
             
             # Compute loss
             loss_dict = criterion(outputs, targets)
-            losses_reduced = sum(loss_dict[k] * weight_dict[k] 
-                               for k in loss_dict.keys() if k in weight_dict)
+            losses_reduced = sum(loss_dict[k] for k in loss_dict.keys())
             
             # Backward pass
             losses_reduced.backward()

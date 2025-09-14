@@ -29,3 +29,4 @@ yolov8n.pt
 __pycache__/*
 *.pth
 *.pt
+detr-object-detection/__pycache__/*

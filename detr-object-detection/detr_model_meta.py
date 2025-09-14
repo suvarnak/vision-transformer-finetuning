@@ -34,8 +34,9 @@ class DETR(nn.Module):
         # Projection layer to match hidden_dim
         self.input_proj = nn.Conv2d(self.backbone_dim, hidden_dim, kernel_size=1)
         
-        # Positional encoding
-        self.pos_encoding = PositionalEncoding(hidden_dim)
+        # Positional encoding (DETR style)
+        from position_encoding import PositionEmbeddingSine
+        self.position_embedding = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
         
         # Transformer (Meta's full architecture)
         encoder_layer = nn.TransformerEncoderLayer(hidden_dim, 8, 2048, dropout=0.1)
@@ -52,8 +53,9 @@ class DETR(nn.Module):
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
 
     def forward(self, samples):
-        if isinstance(samples, tuple):
-            x, mask = samples
+        from nested_tensor import NestedTensor
+        if isinstance(samples, NestedTensor):
+            x, mask = samples.decompose()
         else:
             x = samples
             mask = None
@@ -68,42 +70,66 @@ class DETR(nn.Module):
         # Get patch embeddings (excluding CLS token)
         patch_embeddings = dino_outputs.last_hidden_state[:, 1:]  # [B, num_patches, backbone_dim]
         
-        # Reshape to spatial format - handle variable sizes
-        num_patches = patch_embeddings.shape[1]
-        # Calculate actual patch grid size based on input
-        h_patches = int((x.shape[2] // 16))  # DINOv3-vitl16 uses 16x16 patches
-        w_patches = int((x.shape[3] // 16))
+        # Debug: print actual shapes
+        print(f"Patch embeddings shape: {patch_embeddings.shape}")
+        print(f"Input shape: {x.shape}")
         
-        # Ensure we have the right number of patches
-        expected_patches = h_patches * w_patches
-        if num_patches != expected_patches:
-            # Reshape patch embeddings to 2D grid first
-            current_size = int(num_patches ** 0.5)
-            patch_2d = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, current_size, current_size)
-            
-            # Interpolate to expected spatial size
-            patch_2d_resized = torch.nn.functional.interpolate(
-                patch_2d,
-                size=(h_patches, w_patches),
+        # Calculate patch grid from actual number of patches
+        num_patches = patch_embeddings.shape[1]
+        
+        # Find the correct factorization
+        factors = []
+        for i in range(1, int(num_patches**0.5) + 1):
+            if num_patches % i == 0:
+                factors.append((i, num_patches // i))
+        
+        # Choose the most square-like factorization
+        h_patches, w_patches = min(factors, key=lambda x: abs(x[0] - x[1]))
+        
+        print(f"Using patch grid: {h_patches} x {w_patches} = {h_patches * w_patches}")
+        
+        # Reshape to spatial format
+        features = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, h_patches, w_patches)
+        
+        # Calculate target size for DETR (16x16 patches)
+        target_h = x.shape[2] // 16
+        target_w = x.shape[3] // 16
+        
+        # Interpolate to DETR expected size
+        if h_patches != target_h or w_patches != target_w:
+            features = torch.nn.functional.interpolate(
+                features,
+                size=(target_h, target_w),
                 mode='bilinear',
                 align_corners=False
             )
-            
-            # Flatten back to patch sequence
-            patch_embeddings = patch_2d_resized.reshape(B, self.backbone_dim, -1).transpose(1, 2)
-        
-        features = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, h_patches, w_patches)
         
         # Project to hidden_dim
         features = self.input_proj(features)  # [B, hidden_dim, H, W]
         B, C, H, W = features.shape
         
-        # Flatten and add positional encoding
-        features = features.flatten(2).permute(2, 0, 1)  # [H*W, B, C]
-        features = self.pos_encoding(features)
+        # Create mask if not provided
+        if mask is None:
+            mask = torch.zeros((B, H, W), dtype=torch.bool, device=features.device)
+        else:
+            # Resize mask to match features
+            mask = torch.nn.functional.interpolate(
+                mask.float().unsqueeze(1), 
+                size=(H, W), 
+                mode='nearest'
+            ).squeeze(1).bool()
         
-        # Encoder
-        memory = self.transformer_encoder(features)
+        # Add positional encoding (DETR style)
+        from nested_tensor import NestedTensor
+        nested_features = NestedTensor(features, mask)
+        pos = self.position_embedding(nested_features)
+        
+        # Flatten for transformer
+        src = features.flatten(2).permute(2, 0, 1)  # [H*W, B, C]
+        pos = pos.flatten(2).permute(2, 0, 1)  # [H*W, B, C]
+        
+        # Encoder (with positional encoding)
+        memory = self.transformer_encoder(src + pos)
         
         # Decoder with object queries
         query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1)  # [num_queries, B, C]
