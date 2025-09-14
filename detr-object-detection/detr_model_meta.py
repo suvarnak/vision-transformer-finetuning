@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-import torchvision.transforms as T
-from transformers import pipeline
+from transformers import AutoModel
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -19,18 +18,18 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:x.size(0), :]
 
 class DETR(nn.Module):
-    def __init__(self, num_classes=91, num_queries=50, hidden_dim=1024):  # Reduce queries and dims
+    def __init__(self, num_classes=91, num_queries=100, hidden_dim=256):
         super().__init__()
         self.num_queries = num_queries
         self.hidden_dim = hidden_dim
         
-        # DINOv3 backbone
-        self.backbone = pipeline(
-            task="image-feature-extraction",
-            model="facebook/dinov3-vits16-pretrain-lvd1689m",
-            dtype=torch.bfloat16,
-        )
-        self.backbone_dim = 4096  # DINOv3 output dimension
+        # DINOv3 backbone (using correct model identifier)
+        self.backbone = AutoModel.from_pretrained("facebook/dinov3-vitl16-pretrain-lvd1689m")
+        self.backbone_dim = 1024  # DINOv3-vitl16 (large) output dimension
+        
+        # Freeze backbone initially (Meta's approach)
+        for param in self.backbone.parameters():
+            param.requires_grad = False
         
         # Projection layer to match hidden_dim
         self.input_proj = nn.Conv2d(self.backbone_dim, hidden_dim, kernel_size=1)
@@ -38,12 +37,12 @@ class DETR(nn.Module):
         # Positional encoding
         self.pos_encoding = PositionalEncoding(hidden_dim)
         
-        # Transformer (reduced layers)
-        encoder_layer = nn.TransformerEncoderLayer(hidden_dim, 8, 1024, dropout=0.1)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, 3)  # Reduce layers
+        # Transformer (Meta's full architecture)
+        encoder_layer = nn.TransformerEncoderLayer(hidden_dim, 8, 2048, dropout=0.1)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, 6)
         
-        decoder_layer = nn.TransformerDecoderLayer(hidden_dim, 8, 1024, dropout=0.1)
-        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, 3)  # Reduce layers
+        decoder_layer = nn.TransformerDecoderLayer(hidden_dim, 8, 2048, dropout=0.1)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, 6)
         
         # Object queries
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
@@ -52,34 +51,48 @@ class DETR(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)  # +1 for no-object
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
 
-    def forward(self, x):
+    def forward(self, samples):
+        if isinstance(samples, tuple):
+            x, mask = samples
+        else:
+            x = samples
+            mask = None
+        
         # Extract features using DINOv3
         B = x.shape[0]
         
-        # Convert tensor to PIL images for pipeline
-        images = []
-        for i in range(B):
-            img_tensor = x[i]
-            # Denormalize and convert to PIL
-            img_tensor = img_tensor * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-            img_tensor = torch.clamp(img_tensor, 0, 1)
-            img_pil = T.ToPILImage()(img_tensor)
-            images.append(img_pil)
-        
-        # Extract features
+        # Extract features with frozen backbone
         with torch.no_grad():
-            features_list = self.backbone(images)
-        
-        # Convert to tensor and reshape
-        features_tensor = torch.stack([torch.tensor(f) for f in features_list])  # [B, num_patches, backbone_dim]
+            dino_outputs = self.backbone(x)
         
         # Get patch embeddings (excluding CLS token)
-        patch_embeddings = features_tensor[:, 1:]  # [B, num_patches, backbone_dim]
+        patch_embeddings = dino_outputs.last_hidden_state[:, 1:]  # [B, num_patches, backbone_dim]
         
-        # Reshape to spatial format
+        # Reshape to spatial format - handle variable sizes
         num_patches = patch_embeddings.shape[1]
-        patch_size = int(num_patches ** 0.5)  # Assuming square patches
-        features = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, patch_size, patch_size)
+        # Calculate actual patch grid size based on input
+        h_patches = int((x.shape[2] // 16))  # DINOv3-vitl16 uses 16x16 patches
+        w_patches = int((x.shape[3] // 16))
+        
+        # Ensure we have the right number of patches
+        expected_patches = h_patches * w_patches
+        if num_patches != expected_patches:
+            # Reshape patch embeddings to 2D grid first
+            current_size = int(num_patches ** 0.5)
+            patch_2d = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, current_size, current_size)
+            
+            # Interpolate to expected spatial size
+            patch_2d_resized = torch.nn.functional.interpolate(
+                patch_2d,
+                size=(h_patches, w_patches),
+                mode='bilinear',
+                align_corners=False
+            )
+            
+            # Flatten back to patch sequence
+            patch_embeddings = patch_2d_resized.reshape(B, self.backbone_dim, -1).transpose(1, 2)
+        
+        features = patch_embeddings.transpose(1, 2).reshape(B, self.backbone_dim, h_patches, w_patches)
         
         # Project to hidden_dim
         features = self.input_proj(features)  # [B, hidden_dim, H, W]

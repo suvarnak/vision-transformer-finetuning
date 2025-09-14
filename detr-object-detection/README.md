@@ -1,13 +1,14 @@
-# DETR Object Detection
+# DETR with DINOv3 Backbone
 
-Classic DETR (DEtection TRansformer) implementation trained from scratch on COCO dataset.
+Meta's official DETR implementation with DINOv3 backbone for object detection on COCO dataset.
 
 ## Files
 
-- `detr_model.py` - Core DETR model with transformer architecture
-- `detr_loss.py` - Hungarian matching and loss functions
-- `train_detr.py` - Training script with checkpoint saving
-- `validate_detr.py` - Validation script with metrics
+- `detr_model_meta.py` - DETR model with DINOv3 backbone
+- `detr_loss.py` - Hungarian matching and loss functions  
+- `train_detr_official.py` - Meta's official training procedure
+- `transforms.py` - Meta's official data transforms
+- `check_dinov3_dims.py` - Model dimension verification
 - `requirements.txt` - Dependencies
 
 ## Installation
@@ -50,17 +51,14 @@ huggingface-cli login
 
 ### Training
 ```bash
-python train_detr.py
+python train_detr_official.py
 ```
 
-Checkpoints saved every 5 epochs in `checkpoints/` directory.
-
-### Validation
-```bash
-python validate_detr.py
-```
-
-Evaluates the trained model and reports precision, recall, and F1-score.
+Uses Meta's official DETR training procedure:
+- Multi-scale transforms (480-800px)
+- 300 epochs with lr scheduling
+- Backbone unfreezing after 100 epochs
+- Checkpoints saved every 50 epochs
 
 ## Model Architecture
 
@@ -101,12 +99,38 @@ facebook/dinov3-vit7b16-pretrain-lvd1689m: 1536 dimensions
 - **DINOv3**: `dinov3-{vits16|vitb16|vitl16|vit7b16}-pretrain-lvd1689m`
 
 ### Architecture Mapping:
-| Model | DINOv2 | DINOv3 | Dimensions |
-|-------|--------|--------|-----------|
-| Small | dinov2-small | dinov3-vits16 | 384 |
-| Base | dinov2-base | dinov3-vitb16 | 768 |
-| Large | dinov2-large | dinov3-vitl16 | 1024 |
-| Giant | dinov2-giant | dinov3-vit7b16 | 1536 |
+| Model | DINOv2 | DINOv3 | Dimensions | Patch Size |
+|-------|--------|--------|-----------|------------|
+| Small | dinov2-small | dinov3-vits16 | 384 | 14x14 / 16x16 |
+| Base | dinov2-base | dinov3-vitb16 | 768 | 14x14 / 16x16 |
+| Large | dinov2-large | dinov3-vitl16 | 1024 | 14x14 / 16x16 |
+| Giant | dinov2-giant | dinov3-vit7b16 | 1536 | 14x14 / 16x16 |
+
+### Patch Size Details:
+- **DINOv2**: Uses 14x14 patches
+- **DINOv3**: Uses 16x16 patches (indicated by "16" in model name)
+- **COCO Dataset**: Original images are variable size (32px-640px), typically ~480x640
+- **Training Input Sizes** (after resize): 
+  - **224x224**: DINOv2 = 16x16 patches, DINOv3 = 14x14 patches
+  - **448x448**: DINOv2 = 32x32 patches, DINOv3 = 28x28 patches  
+  - **512x512**: DINOv2 = 36x36 patches, DINOv3 = 32x32 patches
+- **Meta's DETR**: Multi-scale 480-800px with max_size=1333px (aspect ratio preserving)
+
+### Patch Grid Calculation:
+```python
+# For DINOv2 models
+h_patches = input_height // 14
+w_patches = input_width // 14
+
+# For DINOv3 models  
+h_patches = input_height // 16
+w_patches = input_width // 16
+
+# Meta's multi-scale examples:
+# 480px input: DINOv3 = 30x30 patches
+# 640px input: DINOv3 = 40x40 patches  
+# 800px input: DINOv3 = 50x50 patches
+```
 
 ## License
 
